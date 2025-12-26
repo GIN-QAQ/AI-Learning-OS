@@ -56,7 +56,7 @@ class Question(BaseModel):
     explanation: str
     is_transfer: bool = False  # 是否为迁移测试题
     created_at: datetime = Field(default_factory=datetime.now)
-    
+
     class Config:
         use_enum_values = True
 
@@ -75,7 +75,7 @@ class KnowledgeItem(BaseModel):
     source_url: Optional[str] = None
     tags: List[str] = []
     created_at: datetime = Field(default_factory=datetime.now)
-    
+
     class Config:
         use_enum_values = True
 
@@ -90,7 +90,7 @@ class StudentProgress(BaseModel):
     mastered: bool = False
     transfer_passed: bool = False
     last_activity: datetime = Field(default_factory=datetime.now)
-    
+
     class Config:
         use_enum_values = True
 
@@ -106,7 +106,7 @@ class Session(BaseModel):
     messages: List[Dict[str, str]] = []
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-    
+
     class Config:
         use_enum_values = True
 
