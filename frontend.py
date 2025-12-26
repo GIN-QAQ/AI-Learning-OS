@@ -164,7 +164,7 @@ def load_custom_css():
 
     /* 侧边栏样式 */
     .sidebar-section {
-        background: black;
+        background: white;
         border-radius: 1rem;
         padding: 1rem;
         margin-bottom: 1rem;
