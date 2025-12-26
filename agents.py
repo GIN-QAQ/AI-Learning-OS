@@ -60,75 +60,100 @@ class TeachingAgent(BaseAgent):
         Subject.POLITICS: "政治"
     }
 
-    def get_system_prompt(self, subject: Subject, knowledge: List[KnowledgeItem]) -> str:
-        """生成系统提示词"""
+    def get_system_prompt(self, subject: Subject, knowledge: List[KnowledgeItem], student_level: GradeLevel = GradeLevel.C) -> str:
+        """生成系统提示词，考虑学生水平"""
         subject_name = self.SUBJECT_NAMES.get(subject, getattr(subject, "value", str(subject)))
-
-        knowledge_text = ""
+        
+        # 结构化知识库，增加层级关系
+        knowledge_text = "## 知识点体系\n"
+        topics = {}
+        
+        # 按主题分组知识点
         for k in knowledge:
-            knowledge_text += f"""
-【知识点：{k.title}】
-主题：{k.topic_name}
-内容：{k.content}
-要点：{', '.join(k.key_points)}
-常见误区：{', '.join(k.common_mistakes)}
-教学提示：{', '.join(k.intuition_pumps)}
----
+            topic = getattr(k, "topic_name", "其他")
+            if topic not in topics:
+                topics[topic] = []
+            topics[topic].append(k)
+        
+        for topic, items in topics.items():
+            knowledge_text += f"### {topic}\n"
+            for k in items:
+                knowledge_text += f"""
+    - **概念**：{k.title}
+    - **核心内容**：{k.content}
+    - **关键要点**：{', '.join(k.key_points)}
+    - **常见误区**：{', '.join(k.common_mistakes)}
 """
-
+        
+        # 根据学生水平调整教学策略
+        level_adjustments = {
+            GradeLevel.C: "从最基础的概念开始讲解，使用最简单的语言和大量例子",
+            GradeLevel.B: "可以使用中等难度的讲解，适当引入一些拓展内容",
+            GradeLevel.A: "可以深入讲解概念的本质和应用，挑战学生的思维"
+        }
+        
         return f"""你是一位专业的{subject_name}学科 AI 导师，具有丰富的教学经验。
 
 ## 你的教学风格
-1. 采用苏格拉底式提问法，引导学生思考
-2. 善于用生动的比喻和实例解释抽象概念
-3. 根据学生的理解程度调整教学策略
+1. 采用苏格拉底式提问法，通过连续的引导性问题帮助学生自主思考
+2. 善于用生动的比喻和贴近生活的实例解释抽象概念
+3. 根据学生的理解程度灵活调整教学策略：{level_adjustments.get(student_level, "根据学生反应灵活调整")}
 4. 鼓励学生提问，营造积极的学习氛围
-5. 对学生的回答给予建设性反馈
+5. 对学生的回答给予具体、建设性的反馈
 
 ## 当前学科知识库
 {knowledge_text}
 
 ## 教学原则
-1. 先了解学生的基础，再开始教学
-2. 从简单到复杂，循序渐进
-3. 多用"你觉得呢？""为什么会这样？"等引导性问题
-4. 及时发现并纠正学生的误区
-5. 知识点讲解完毕后，主动提出进行练习
+1. 先评估学生的基础，再开始针对性教学
+2. 从简单到复杂，循序渐进，建立清晰的知识脉络
+3. 多用"你觉得呢？""为什么会这样？""如果...会发生什么？"等引导性问题
+4. 及时发现并纠正学生的误区，提供具体的改进建议
+5. 知识点讲解完毕后，主动提出进行练习以巩固所学
 
-请按照以下规则响应：
+## 响应规则
+1. **练习请求**（包含"开始练习"或类似词语）：
+   - 输出两道与当前学习内容相关的练习题
+   - 考虑学生水平，调整题目难度
+   - 格式：
+     【今日练习】
+     题目1: [描述]（难度：⭐⭐）
+     题目2: [描述]（难度：⭐⭐⭐）
 
-1. 如果输入包含"开始练习"或类似词语：
-输出两道相关练习题，格式：
-【今日练习】
-题目1: [描述]
-题目2: [描述]
+2. **提示请求**（包含"给我提示"或类似词语）：
+   - 输出三个层次的提示，逐步引导
+   - 提示1：激活已有知识
+   - 提示2：提供方法指导
+   - 提示3：检查关键点
+   - 格式：
+     【解题提示】
+     提示1（知识激活）: 回忆一下...相关的概念
+     提示2（方法指导）: 可以尝试使用...方法来解决
+     提示3（检查要点）: 注意...关键点，避免...常见错误
 
-2. 如果输入包含"给我提示"或类似词语：
-输出三个层次的提示，格式：
-【解题提示】
-提示1（思路引导）: [内容]
-提示2（方法建议）: [内容]
-提示3（检查要点）: [内容]
+3. **总结请求**（包含"知识总结"或类似词语）：
+   - 输出结构化总结，建立知识体系
+   - 格式：
+     【章节总结】
+     📖 **核心概念**: [关键概念列表]
+     🧠 **重点理解**: [需要深入理解的内容]
+     🔗 **知识联系**: [与其他知识点的关联]
+     🎯 **应用场景**: [实际应用举例]
 
-3. 如果输入包含"知识总结"或类似词语：
-输出结构化总结，格式：
-【章节总结】
-📖 核心概念: [内容]
-🧠 重点理解: [内容]
-🔗 知识联系: [内容]
-
-4. 否则正常回答问题。
+4. **普通问题**：
+   - 直接回答问题，保持简洁明了
+   - 适当引入相关知识点，拓展学生思维
 
 ## 输出要求
-- 使用简洁明了的语言
+- 使用与学生水平相适应的语言
 - 适当使用 emoji 增加亲和力
-- 每次回复不超过300字
-- 在合适的时机引入练习题
-- 回应学生的时候不要把你的思考过程也展示出来，请直接发送要回应的内容"""
+- 每次回复聚焦一个核心知识点
+- 在合适的时机引入练习题或拓展问题
+- 回应学生的时候不要展示思考过程，请直接发送要回应的内容"""
 
     def teach(self, session: Session, user_message: str, knowledge: List[KnowledgeItem]) -> str:
         """进行教学"""
-        system_prompt = self.get_system_prompt(session.subject, knowledge)
+        system_prompt = self.get_system_prompt(session.subject, knowledge, session.current_grade)
 
         messages = [{"role": "system", "content": system_prompt}]
 
@@ -142,50 +167,121 @@ class TeachingAgent(BaseAgent):
 
         return self._call_llm(messages)
 
-    def generate_remediation(self, session: Session, topic: str, failures: int) -> str:
-        """生成补救教学内容"""
-        prompt = f"""学生在学习"{topic}"时已经连续失败{failures}次，请切换教学策略：
+    def generate_remediation(self, session: Session, topic: str, failures: int, error_type: Optional[str] = None) -> str:
+        """生成个性化补救教学内容，基于错误类型和学生水平"""
+        knowledge = db.get_knowledge_by_subject(session.subject)
+        
+        # 获取学生最近的答题历史，用于分析常见错误
+        recent_messages = session.messages[-10:]  # 获取最近10条消息
+        answer_history = []
+        for i in range(len(recent_messages) - 1, -1, -2):  # 倒序查找，每两条消息为一组（用户问+系统答）
+            if recent_messages[i].get("role") == "assistant" and "错误类型" in recent_messages[i].get("content", ""):
+                if i > 0 and recent_messages[i-1].get("role") == "user":
+                    answer_history.append({
+                        "question": recent_messages[i-1].get("content", ""),
+                        "feedback": recent_messages[i].get("content", "")
+                    })
+            if len(answer_history) >= 3:  # 最多获取3条最近的答题历史
+                break
+        
+        # 构建错误历史上下文
+        error_history_text = ""
+        if answer_history:
+            error_history_text = "## 学生最近错误历史\n"
+            for i, record in enumerate(answer_history, 1):
+                error_history_text += f"### 错误 {i}\n"
+                error_history_text += f"- 问题：{record['question'][:50]}...\n"
+                error_history_text += f"- 反馈：{record['feedback'].split('\n')[0]}\n"
+        
+        # 定义错误类型对应的教学策略
+        error_strategies = {
+            "conceptual": "重点解释核心概念，使用直观的比喻和图形化描述",
+            "procedural": "分解解题步骤，展示详细的操作流程",
+            "factual": "提供记忆技巧，使用联想和重复练习",
+            "logical": "培养逻辑思维，使用思维导图和推理训练",
+            "misinterpretation": "加强题目理解训练，提升审题能力"
+        }
+        
+        # 根据学生水平调整补救难度
+        level_adjustments = {
+            GradeLevel.C: "从最基础的概念重新开始，使用最简单的语言和大量生活实例",
+            GradeLevel.B: "强化薄弱环节，提供中等难度的练习和指导",
+            GradeLevel.A: "挑战思维深度，提供拓展性问题和综合应用训练"
+        }
+        
+        prompt = f"""学生在学习"{topic}"时已经连续失败{failures}次，请生成个性化补救教学内容：
 
-1. 用更简单的语言重新解释核心概念
-2. 提供一个更生活化的例子
-3. 将知识点拆分成更小的步骤
-4. 给予学生鼓励
+## 学生信息
+- 当前水平：{session.current_grade.name}（{session.current_grade.value}）
+- 错误类型：{error_type if error_type else '综合型错误'}
+{error_history_text if error_history_text else ''}
 
-请生成补救教学内容："""
+## 教学策略要求
+1. {level_adjustments.get(session.current_grade, '根据学生水平调整难度')}
+2. {error_strategies.get(error_type, '采用多样化教学方法')}
+3. 重新解释核心概念，避免使用复杂术语
+4. 提供3-5个递进式的小步骤练习
+5. 给予积极的鼓励和具体的改进建议
+
+## 输出格式
+### 🔄 补救学习计划
+- **问题诊断**：分析学生的主要问题
+- **重新讲解**：用新的方式解释核心概念
+- **递进练习**：分步骤的小练习
+- **改进建议**：具体的学习方法建议
+
+请生成符合以上要求的补救教学内容："""
 
         messages = [
-            {"role": "system", "content": self.get_system_prompt(session.subject, db.get_knowledge_by_subject(session.subject))},
+            {"role": "system", "content": self.get_system_prompt(session.subject, knowledge, session.current_grade)},
             {"role": "user", "content": prompt}
         ]
 
         return self._call_llm(messages)
 
     def generate_hints_for_question(self, session: Session, question: Question, knowledge: List[KnowledgeItem]) -> str:
-        """为特定题目生成分层提示（不直接给最终答案/选项字母）"""
+        """为特定题目生成分层提示，考虑学生水平"""
         options_text = ""
         if getattr(question, "options", None):
             options_text = "\n".join([str(o) for o in question.options])
-
+        
+        # 获取相关知识点
+        related_knowledge = []
+        for k in knowledge:
+            if any(keyword in question.content for keyword in k.key_points):
+                related_knowledge.append(k)
+        
+        knowledge_context = ""
+        if related_knowledge:
+            knowledge_context = "相关知识点：\n" + "\n".join([f"- {k.title}: {', '.join(k.key_points[:2])}" for k in related_knowledge])
+        
         prompt = f"""给我提示。
 
 你正在辅导学生解题。学生希望获得提示，但你不能直接给出最终答案或选项字母。
 
-题目类型：{question.question_type}
-题目：{question.content}
-{("选项：" + options_text) if options_text else ""}
+## 题目信息
+- 类型：{question.question_type}
+- 题目：{question.content}
+{"选项：" + options_text if options_text else ""}
+{knowledge_context if knowledge_context else ""}
 
-要求：
-- 输出三个层次的提示
-- 只给思路/方法/检查要点，不要直接说正确答案是什么
+## 学生水平
+当前学生水平：{session.current_grade.name}（{session.current_grade.value}）
+
+## 提示要求
+- 输出三个层次的提示，逐步引导学生思考
+- 提示1：激活学生已有的相关知识
+- 提示2：提供具体的解题方法或思路
+- 提示3：指出容易出错的关键点或检查方法
 - 严格使用格式：
 
 【解题提示】
-提示1（思路引导）: ...
-提示2（方法建议）: ...
+提示1（知识激活）: ...
+提示2（方法指导）: ...
 提示3（检查要点）: ...
 """
         messages = [
-            {"role": "system", "content": self.get_system_prompt(session.subject, knowledge)},
+            {"role": "system", "content": self.get_system_prompt(session.subject, knowledge, session.current_grade)},
             {"role": "user", "content": prompt}
         ]
         return self._call_llm(messages)
@@ -199,8 +295,17 @@ class AssessmentAgent(BaseAgent):
         question: Question,
         student_answer: str,
         session: Session
-    ) -> Tuple[bool, GradeLevel, str]:
-        """评估学生回答"""
+    ) -> Tuple[bool, GradeLevel, str, Optional[str]]:
+        """评估学生回答，增加错误类型分析"""
+
+        # 增加错误类型分类
+        error_types = {
+            "conceptual": "概念理解错误",
+            "procedural": "解题步骤错误",
+            "factual": "事实记忆错误",
+            "logical": "逻辑推理错误",
+            "misinterpretation": "题目理解错误"
+        }
 
         prompt = f"""请评估学生对以下问题的回答：
 
@@ -219,44 +324,72 @@ class AssessmentAgent(BaseAgent):
 1. 答案正确性
 2. 理解深度
 3. 表达清晰度
+4. 思维过程完整性
 
 ## 输出格式（请严格按照此格式输出JSON）
 {{
     "is_correct": true/false,
     "grade": "A/B/C",
     "feedback": "对学生的反馈",
-    "explanation": "详细解释为什么这样评分"
+    "explanation": "详细解释为什么这样评分",
+    "error_type": "{list(error_types.keys())[0]}/null",
+    "error_description": "错误类型描述/null",
+    "improvement_suggestion": "具体的改进建议"
 }}
 
 等级标准：
-- A级：完全正确，理解深刻
+- A级：完全正确，理解深刻，表达清晰
 - B级：基本正确，但有小错误或理解不够深入
 - C级：理解有误，需要重新学习"""
 
         messages = [
-            {"role": "system", "content": "你是一位严谨但友善的评估专家，擅长分析学生的学习情况。请用JSON格式输出评估结果。"},
+            {"role": "system", "content": "你是一位严谨但友善的评估专家，擅长分析学生的学习情况。请用JSON格式输出评估结果，确保包含所有要求的字段。"},
             {"role": "user", "content": prompt}
         ]
 
         response = self._call_llm(messages)
 
-        # 解析响应（优先 JSON）
+        # 增强JSON解析的鲁棒性
         try:
-            json_match = re.search(r'\{[\s\S]*\}', response)
-            if json_match:
-                result = json.loads(json_match.group())
-                is_correct = bool(result.get("is_correct", False))
-                grade_str = str(result.get("grade", "C")).strip().upper()
-                grade = GradeLevel(grade_str) if grade_str in ["A", "B", "C"] else GradeLevel.C
-                feedback = str(result.get("feedback", "评估完成"))
-                return is_correct, grade, feedback
-        except Exception:
-            pass
+            # 提取JSON部分
+            import json
+            import re
+            
+            # 尝试匹配JSON对象
+            json_pattern = r'\{[\s\S]*?\}'
+            matches = re.findall(json_pattern, response)
+            
+            for match in matches:
+                try:
+                    result = json.loads(match)
+                    # 验证必要字段
+                    if all(key in result for key in ["is_correct", "grade", "feedback"]):
+                        is_correct = bool(result.get("is_correct", False))
+                        grade_str = str(result.get("grade", "C")).strip().upper()
+                        grade = GradeLevel(grade_str) if grade_str in ["A", "B", "C"] else GradeLevel.C
+                        feedback = str(result.get("feedback", "评估完成"))
+                        error_type = result.get("error_type")  # 提取错误类型键
+                        
+                        # 增强反馈内容
+                        if not is_correct:
+                            error_desc = result.get("error_description")
+                            improvement = result.get("improvement_suggestion")
+                            
+                            if error_type and error_desc:
+                                feedback += f"\n\n📌 错误类型：{error_desc}"
+                            if improvement:
+                                feedback += f"\n\n💡 改进建议：{improvement}"
+                        
+                        return is_correct, grade, feedback, error_type
+                except json.JSONDecodeError:
+                    continue
+        except Exception as e:
+            print(f"JSON解析错误: {e}")
 
-        # JSON 解析失败则简化评估
+        # JSON解析失败则简化评估
         is_correct = self._simple_check(question, student_answer)
         grade = GradeLevel.A if is_correct else GradeLevel.C
-        return is_correct, grade, response
+        return is_correct, grade, response, None
 
     def _simple_check(self, question: Question, answer: str) -> bool:
         """简单答案检查"""
@@ -522,7 +655,7 @@ class LearningAgent(BaseAgent):
                 "mastered": False
             }
 
-        is_correct, grade, feedback = self.assessment_agent.evaluate_answer(question, user_message, session)
+        is_correct, grade, feedback, error_type = self.assessment_agent.evaluate_answer(question, user_message, session)
         session.current_grade = grade
 
         if is_correct:
@@ -545,7 +678,8 @@ class LearningAgent(BaseAgent):
             remediation = self.teaching_agent.generate_remediation(
                 session,
                 getattr(question, "topic_name", "当前主题"),
-                session.consecutive_failures
+                session.consecutive_failures,
+                error_type
             )
             return {
                 "response": f"{feedback}\n\n---\n\n🔄 让我换一种方式来帮助你理解：\n\n{remediation}",
