@@ -7,9 +7,7 @@ Configuration file for API keys and settings
 import os
 from typing import Optional
 
-
 # LLM API 配置
-
 # OpenAI 兼容接口配置
 # 支持 OpenAI, Azure OpenAI, 通义千问, 智谱AI, DeepSeek 等
 # API_KEY: str = os.getenv("OPENAI_API_KEY", "your-api-key-here")
